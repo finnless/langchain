@@ -31,6 +31,7 @@ def log_error_once(method: str, exception: Exception) -> None:
 
 
 def wait_for_all_tracers() -> None:
+    """Wait for all tracers to finish."""
     global _TRACERS
     for tracer in _TRACERS:
         tracer.wait_for_futures()
@@ -72,12 +73,15 @@ class LangChainTracer(BaseTracer):
         run_id: UUID,
         tags: Optional[List[str]] = None,
         parent_run_id: Optional[UUID] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         """Start a trace for an LLM run."""
         parent_run_id_ = str(parent_run_id) if parent_run_id else None
         execution_order = self._get_execution_order(parent_run_id_)
         start_time = datetime.utcnow()
+        if metadata:
+            kwargs.update({"metadata": metadata})
         chat_model_run = Run(
             id=run_id,
             parent_run_id=parent_run_id,
@@ -98,13 +102,10 @@ class LangChainTracer(BaseTracer):
         """The Langchain Tracer uses Post/Patch rather than persist."""
 
     def _get_tags(self, run: Run) -> List[str]:
-        """Add tags to a run."""
-        tags = run.tags or []
-        if self.tags:
-            for tag in self.tags:
-                if tag not in tags:
-                    tags.append(tag)
-        return tags
+        """Get combined tags for a run."""
+        tags = set(run.tags or [])
+        tags.update(self.tags or [])
+        return list(tags)
 
     def _persist_run_single(self, run: Run) -> None:
         """Persist a run."""
